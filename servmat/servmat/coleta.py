@@ -112,7 +112,8 @@ def gravar(conn: sqlite3.Connection, linha: dict, rel: Relatorio) -> None:
             rel.iguais += 1
             return
         decididos = conn.execute(
-            "SELECT COUNT(*) FROM itens WHERE os = ? AND (fase NOT IN ('relatorio', 'n1') OR versao > 1)",
+            "SELECT COUNT(*) FROM itens WHERE os = ? AND (fase != 'relatorio' AND NOT (fase = 'nivel' AND nivel_pos = 0) "
+            "OR versao > 1)",
             (linha["os"],)).fetchone()[0]
         conn.execute("UPDATE os SET relato = ?, utilizou = ?, relato_hash = ?, task_url = ?, atualizada_em = ? "
                      "WHERE os = ?", (linha["relato"], linha["utilizou"], linha["relato_hash"],

@@ -4,6 +4,8 @@ import { api } from "./api";
 import { Celular } from "./telas/Celular";
 import { Entrar } from "./telas/Entrar";
 import { Fila } from "./telas/Fila";
+import { NiveisTela } from "./telas/NiveisTela";
+import { Pedido } from "./telas/Pedido";
 import type { Usuario } from "./tipos";
 import "./estilo.css";
 
@@ -18,9 +20,12 @@ function App() {
 
   if (eu === undefined) return null;
   if (eu === null) return <Entrar aoEntrar={setEu} />;
-  // /celular = tela do avaliador no telefone; no celular, a raiz também abre ela.
-  const celular = location.pathname.startsWith("/celular") || (location.pathname === "/" && window.innerWidth < 640);
-  return celular ? <Celular eu={eu} aoSair={sair} /> : <Fila eu={eu} aoSair={sair} />;
+  const caminho = location.pathname.replace(/\/$/, "") || "/";
+  if (caminho === "/pedido") return <Pedido eu={eu} aoSair={sair} />;
+  if (caminho === "/niveis") return <NiveisTela eu={eu} aoSair={sair} />;
+  // /celular = tela do aprovador no telefone; no celular, a raiz também abre ela.
+  if (caminho === "/celular" || (caminho === "/" && window.innerWidth < 640)) return <Celular eu={eu} aoSair={sair} />;
+  return <Fila eu={eu} aoSair={sair} />;
 }
 
 createRoot(document.getElementById("raiz")!).render(

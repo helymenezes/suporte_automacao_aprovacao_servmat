@@ -60,7 +60,7 @@ OS = [
 
 
 def _i(os_, item, natureza, situacao, qtd, cls, conf, evidencia, contrato="", val_ok=True, val_txt="", presumida=False,
-       fase="n1"):
+       fase="nivel"):
     return dict(os=os_, item=item, natureza=natureza, situacao=situacao, qtd=qtd, presumida=int(presumida), cls=cls,
                 conf=conf, contrato_item=contrato, val_ok=int(val_ok), val_txt=val_txt, evidencia=evidencia, fase=fase)
 
@@ -117,7 +117,7 @@ def carregar(conn: sqlite3.Connection, forcar: bool = False) -> int:
     agora = banco.agora()
     with banco.Transacao(conn):
         if forcar:
-            for t in ("eventos", "itens", "identificacoes", "os"):
+            for t in ("eventos", "audios", "envios", "pedidos", "itens", "identificacoes", "os"):
                 conn.execute(f"DELETE FROM {t}")
         for o in OS:
             o = {"equipamento": "", "origem": "", **o}
@@ -128,11 +128,17 @@ def carregar(conn: sqlite3.Connection, forcar: bool = False) -> int:
                 (o["os"], o["cliente"], o["area"], o["equipamento"], o["tipo"], o["tecnico"], o["relato"], o["utilizou"],
                  agente.hash_relato(o["relato"], o["utilizou"]), o["origem"], o["prog_txt"], o["prog_meta"],
                  "sem_info" if sem_info else "feita", agora, agora))
+        versao, _ = banco.rota_atual(conn)
+        if not versao:
+            raise SystemExit("Crie antes os usuários hely e renato: a rota padrão (Hely → Renato) nasce com eles.")
         for i in ITENS:
+            pos = 0 if i["fase"] == "nivel" else None
             conn.execute(
                 "INSERT INTO itens (os, item, natureza, situacao, qtd, presumida, cls, conf, contrato_item, val_ok, "
-                "val_txt, evidencia, fase, sugerido_por, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "val_txt, evidencia, fase, nivel_pos, rota_versao, sugerido_por, criado_em) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (i["os"], i["item"], i["natureza"], i["situacao"], i["qtd"], i["presumida"], i["cls"], i["conf"],
-                 i["contrato_item"], i["val_ok"], i["val_txt"], i["evidencia"], i["fase"], "esboço", agora))
+                 i["contrato_item"], i["val_ok"], i["val_txt"], i["evidencia"], i["fase"], pos,
+                 versao if pos is not None else None, "esboço", agora))
         banco.evento(conn, "*", "seed_esboco", "seed", dados={"os": len(OS), "itens": len(ITENS)})
     return len(ITENS)

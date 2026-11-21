@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ErroApi } from "../api";
+import { Cabecalho } from "../componentes/Cabecalho";
 import { classeCls, EtapaAtual, Etapas } from "../componentes/Etapas";
 import type { Item, Painel, Servico, Usuario } from "../tipos";
 
@@ -52,7 +53,7 @@ export function Fila({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
 
   const filtrados = useMemo(() => {
     const q = f.busca.trim().toLowerCase();
-    const passaItem = (i: Item) => (!f.fase || i.fase === f.fase) && (!f.cls || i.cls === f.cls) && (!f.nat || i.natureza === f.nat);
+    const passaItem = (i: Item) => (!f.fase || i.fase_chave === f.fase) && (!f.cls || i.cls === f.cls) && (!f.nat || i.natureza === f.nat);
     return servicos.filter((s) =>
       (!f.cliente || s.cliente === f.cliente) &&
       (!f.tipo || s.tipo === f.tipo) &&
@@ -102,22 +103,11 @@ export function Fila({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
 
   return (
     <div style={{ minHeight: "100vh" }}>
-      <header className="topo">
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <span className="sobre">Grupo Suporte · PCM</span>
-          <h1>Peças, materiais e serviços das OS</h1>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          {painel && <span className="pilula">Atualizado: {new Date(painel.gerado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>}
-          {painel && painel.aguardando_agente > 0 && <span className="pilula aviso">{painel.aguardando_agente} OS aguardando o agente</span>}
-          <span className="pilula">{eu.nome} · Nível {eu.nivel}</span>
-          <button type="button" className="pilula" onClick={aoSair}>Sair</button>
-        </div>
-      </header>
-      <nav aria-label="Seções do painel" className="abas">
-        <a href="/" aria-current="page">Fila de aprovação</a>
-        <a href="/celular">Tela do celular</a>
-      </nav>
+      <Cabecalho eu={eu} aoSair={aoSair} pilulas={<>
+        {painel && <span className="pilula">Atualizado: {new Date(painel.gerado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>}
+        {painel && <span className="pilula">Rota versão {painel.rota_versao}</span>}
+        {painel && painel.aguardando_agente > 0 && <span className="pilula aviso">{painel.aguardando_agente} OS aguardando o agente</span>}
+      </>} />
 
       <main className="fila">
         {erroCarga && <p className="erro-caixa" role="alert">{erroCarga}</p>}
@@ -312,18 +302,16 @@ function Detalhe(p: {
 }) {
   const { s, x, eu } = p;
   const pos = s.itens.findIndex((i) => i.id === x.id) + 1;
-  const minhaFase = eu.nivel === 1 ? "n1" : "n2";
-  const podeAgir = x.fase === minhaFase;
-  const ehN1 = x.fase === "n1" && eu.nivel === 1;
+  const podeAgir = x.minha_vez;
+  const ehN1 = x.pode_reclassificar;
   const bloqueado = ehN1 && x.cls === "A definir";
-  const conflito = eu.nivel === 2 && s.conflito_n2;
-  const contratoTxt = s.cliente !== "HGG"
+  const conflito = podeAgir && s.conflito;
+  const contratoTxt = !s.contrato_avaliado
     ? "Contrato não avaliado para este cliente. O agente só identifica o item e a necessidade de Pedido."
     : x.contrato_item || "Catálogo do contrato HGG não conferido para este item.";
   const status: Record<string, string> = {
     relatorio: "O relatório precisa ser corrigido no Auvo, ou o agente refaz a identificação na próxima rodada.",
-    n1: "Aguardando o Nível 1 (Hely).",
-    n2: "Aguardando o Nível 2 (Renato).",
+    nivel: `Aguardando ${x.nivel_quem || "o aprovador"} no ${x.fase_nome}${x.nivel_papel ? ` (${x.nivel_papel})` : ""}.`,
     whats: "Solicitação de orçamento pronta para o orçamentista.",
     pedido: "Item no Pedido. Aguardando o Pedido ser criado e vinculado à OS.",
     fim: "Item concluído. A trilha completa fica guardada para auditoria.",
@@ -369,7 +357,7 @@ function Detalhe(p: {
           <div className="campo">
             <label htmlFor="d-cls" style={{ fontSize: 12, color: "var(--tinta)" }}>Corrigir a classificação</label>
             <select id="d-cls" value={x.cls} disabled={p.ocupado} onChange={(e) => p.aoReclassificar(e.target.value)}>
-              {s.cliente === "HGG" && <option>Contrato HGG</option>}
+              {s.cliente === "HGG" && s.contrato_avaliado && <option>Contrato HGG</option>}
               <option>Pedido de compra</option>
               <option>A definir</option>
             </select>
@@ -381,7 +369,7 @@ function Detalhe(p: {
         <span className="rotulo">Trilha de aprovação</span>
         {x.trilha.map((t) => (
           <div key={t.nivel} className="trilha-linha">
-            <span><strong>{t.nivel}</strong> · {t.quem}</span>
+            <span><strong>{t.nivel}</strong> · {t.quem}{t.papel && <span className="p12 sub"> · {t.papel}</span>}</span>
             <span style={{ fontWeight: 700, color: t.estado === "Aprovado" ? "var(--ok)" : t.estado === "Reprovado" ? "var(--erro)" : t.estado === "Aguardando" ? "var(--atencao)" : "var(--sub)" }}>
               {t.estado === "Aprovado" ? "● " : t.estado === "Reprovado" ? "▼ " : t.estado === "Aguardando" ? "▲ " : ""}{t.estado}
             </span>
@@ -391,7 +379,7 @@ function Detalhe(p: {
 
       {podeAgir ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
-          <span style={{ fontWeight: 700 }}>Decisão de Nível {eu.nivel} · {eu.nome}</span>
+          <span style={{ fontWeight: 700 }}>Decisão do {x.fase_nome} · {eu.nome}</span>
           {conflito && <span className="aviso">▲ Você é o técnico autor desta OS. A observação é obrigatória.</span>}
           <div className="campo">
             <label htmlFor="d-obs" style={{ fontSize: 12, color: "var(--tinta)" }}>Observação (obrigatória para reprovar ou devolver)</label>
@@ -404,7 +392,7 @@ function Detalhe(p: {
               {ehN1 ? "Confirmar sugestão" : "Aprovar"}
             </button>
             <button type="button" className="btn" style={{ flex: "1 1 150px" }} disabled={p.ocupado} onClick={() => p.aoDecidir("devolver")}>
-              {ehN1 ? "Devolver ao agente" : "Devolver para correção"}
+              {ehN1 ? "Devolver ao agente" : "Devolver ao nível anterior"}
             </button>
             <button type="button" className="btn perigo" style={{ flex: "1 1 110px" }} disabled={p.ocupado} onClick={() => p.aoDecidir("reprovar")}>Reprovar</button>
           </div>

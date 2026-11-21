@@ -47,7 +47,7 @@ def test_coleta_nova_igual_e_relato_corrigido(conn):
 
 
 def test_relato_mudou_depois_de_decisao_so_alerta(conn):
-    conn.execute("UPDATE itens SET fase = 'n2', versao = 2 WHERE os = '82150519'")
+    conn.execute("UPDATE itens SET nivel_pos = 1, versao = 2 WHERE os = '82150519'")
     t = tarefa(tid=82150519, report="Condensador trocado")
     c, _ = central_falsa([t])
     r = coleta.coletar(conn, c, CFG)

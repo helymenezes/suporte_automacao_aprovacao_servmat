@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ErroApi } from "../api";
 import { classeCls, EtapaAtual, Etapas } from "../componentes/Etapas";
 import type { Painel, Usuario } from "../tipos";
@@ -10,7 +10,14 @@ const OPCOES: { acao: Acao; nome: string }[] = [
   { acao: "devolver", nome: "Devolver para correção" },
 ];
 
-/** Tela do celular: o avaliador vê só os serviços com itens no nível dele (Renato = Nível 2, Hely = Nível 1). */
+function tipoGravacao(): string {
+  for (const t of ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"]) {
+    if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return "";
+}
+
+/** Tela do celular: cada pessoa vê só os serviços com itens esperando o nível dela. */
 export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
   const [painel, setPainel] = useState<Painel | null>(null);
   const [osSel, setOsSel] = useState<string | null>(null);
@@ -22,8 +29,12 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
   const [msg, setMsg] = useState("");
   const [erro, setErro] = useState("");
   const [ocupado, setOcupado] = useState(false);
-
-  const minhaFase = eu.nivel === 1 ? "n1" : "n2";
+  const [gravando, setGravando] = useState(false);
+  const [audioId, setAudioId] = useState<string | null>(null);
+  const [audioUrl, setAudioUrl] = useState("");
+  const [transcricao, setTranscricao] = useState("");
+  const [avisoAudio, setAvisoAudio] = useState("");
+  const gravador = useRef<MediaRecorder | null>(null);
   const carregar = useCallback(async () => {
     try {
       setPainel(await api.painel());
@@ -34,24 +45,74 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
   }, [aoSair]);
   useEffect(() => { carregar(); }, [carregar]);
 
-  const fila = (painel?.servicos ?? []).filter((s) => s.itens.some((i) => i.fase === minhaFase));
+  const fila = (painel?.servicos ?? []).filter((s) => s.itens.some((i) => i.minha_vez));
   const s = (painel?.servicos ?? []).find((x) => x.os === osSel);
-  const x = s?.itens.find((i) => i.id === itemSel) ?? s?.itens.find((i) => i.fase === minhaFase) ?? s?.itens[0];
-  const podeDecidir = !!x && x.fase === minhaFase;
-  const exige = decisao === "reprovar" || decisao === "devolver" || (eu.nivel === 2 && !!s?.conflito_n2);
-  const pode = podeDecidir && !!decisao && (!exige || !!obs.trim()) && !ocupado;
+  const x = s?.itens.find((i) => i.id === itemSel) ?? s?.itens.find((i) => i.minha_vez) ?? s?.itens[0];
+  const podeDecidir = !!x && x.minha_vez;
+  const exige = decisao === "reprovar" || decisao === "devolver" || (podeDecidir && !!s?.conflito);
+  const textoFinal = [obs.trim(), transcricao.trim() ? `[Áudio] ${transcricao.trim()}` : ""].filter(Boolean).join("\n");
+  const pode = podeDecidir && !!decisao && (!exige || !!textoFinal) && !ocupado && !gravando;
+
+  function limparAudio() {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioId(null); setAudioUrl(""); setTranscricao(""); setAvisoAudio("");
+  }
 
   function abrir(os: string) {
     setOsSel(os); setItemSel(null); setAcomp(false); setDetalhe(false); setDecisao(""); setObs(""); setMsg(""); setErro("");
+    limparAudio();
+  }
+
+  async function alternarGravacao() {
+    if (!x) return;
+    if (gravando) {
+      gravador.current?.stop();
+      return;
+    }
+    setAvisoAudio("");
+    const tipo = tipoGravacao();
+    if (!tipo || !navigator.mediaDevices?.getUserMedia) {
+      setAvisoAudio("Este navegador não grava áudio. Escreva a observação.");
+      return;
+    }
+    try {
+      const fluxo = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(fluxo, { mimeType: tipo });
+      const partes: Blob[] = [];
+      rec.ondataavailable = (e) => e.data.size && partes.push(e.data);
+      rec.onstop = async () => {
+        fluxo.getTracks().forEach((t) => t.stop());
+        setGravando(false);
+        const blob = new Blob(partes, { type: tipo.split(";")[0] });
+        limparAudio();
+        setAudioUrl(URL.createObjectURL(blob));
+        setAvisoAudio("Enviando o áudio…");
+        try {
+          const r = await api.enviarAudio(x.id, blob);
+          setAudioId(r.id);
+          setTranscricao(r.transcricao);
+          setAvisoAudio(r.transcrito ? "Confira o texto antes de enviar." :
+            r.transcricao_ligada ? "Não foi possível transcrever. Escreva o que disse no áudio." :
+              "Transcrição automática desligada. Escreva o resumo do áudio.");
+        } catch (e) {
+          setAvisoAudio(e instanceof Error ? e.message : "Falha ao enviar o áudio.");
+        }
+      };
+      gravador.current = rec;
+      rec.start();
+      setGravando(true);
+    } catch {
+      setAvisoAudio("Sem permissão para usar o microfone.");
+    }
   }
 
   async function enviar() {
     if (!x || !decisao) return;
     setOcupado(true); setErro("");
     try {
-      const r = await api.decidir(x.id, decisao, obs, x.versao);
+      const r = await api.decidir(x.id, decisao, textoFinal, x.versao, audioId ?? undefined);
       setMsg(`${x.item}: ${r.fase_nome}.`);
-      setDecisao(""); setObs(""); setItemSel(null);
+      setDecisao(""); setObs(""); setItemSel(null); limparAudio();
       await carregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Falha ao enviar.");
@@ -66,9 +127,9 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
       <header className="cel-topo">
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={{ fontSize: 11, lineHeight: "16px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            Nível {eu.nivel} · {eu.nome.split(" ")[0]}
+            {eu.niveis.length ? `Nível ${eu.niveis.join(" e ")}` : "Consulta"} · {eu.nome.split(" ")[0]}
           </span>
-          <h1>{eu.nivel === 2 ? "Avaliação técnica" : "Confirmação do PCM"}</h1>
+          <h1>Avaliação no celular</h1>
         </div>
         <button type="button" className="pilula" onClick={aoSair}>Sair</button>
       </header>
@@ -87,7 +148,7 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
                   <span className="p12 sub">{f.cliente} · {f.area}</span>
                 </span>
                 <span className="p12 sub" style={{ flexShrink: 0, textAlign: "right" }}>
-                  {f.itens.filter((i) => i.fase === minhaFase).length} de {f.itens.length}<br />itens
+                  {f.itens.filter((i) => i.minha_vez).length} de {f.itens.length}<br />itens
                 </span>
               </button>
             ))}
@@ -108,9 +169,9 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
                 <span className="sub" style={{ fontSize: 13, lineHeight: "18px" }}>{s.cliente} · {s.area} · {s.tipo}</span>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button type="button" className="btn fino" style={{ flex: "1 1 0" }} aria-expanded={acomp} aria-controls="m-acomp"
+                <button type="button" className="btn fino" style={{ flex: "1 1 0", whiteSpace: "nowrap", padding: "0 8px" }} aria-expanded={acomp} aria-controls="m-acomp"
                   onClick={() => setAcomp(!acomp)}>{acomp ? "▴ Ocultar etapas" : "▾ Acompanhamento"}</button>
-                <button type="button" className={`btn${detalhe ? " ativo" : ""}`} style={{ flex: "1 1 0" }} aria-pressed={detalhe}
+                <button type="button" className={`btn${detalhe ? " ativo" : ""}`} style={{ flex: "1 1 0", whiteSpace: "nowrap", padding: "0 8px" }} aria-pressed={detalhe}
                   aria-controls="m-detalhe" onClick={() => setDetalhe(!detalhe)}>{detalhe ? "Ocultar detalhe" : "Apresentar detalhe"}</button>
               </div>
               {acomp && (
@@ -125,7 +186,7 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
               <span className="p12" style={{ fontWeight: 700 }}>Materiais, peças e serviços ({s.itens.length}) · toque para avaliar</span>
               {s.itens.map((i) => (
                 <button key={i.id} type="button" className="item-cel" aria-pressed={i.id === x.id}
-                  onClick={() => { setItemSel(i.id); setDecisao(""); setObs(""); setErro(""); }}>
+                  onClick={() => { setItemSel(i.id); setDecisao(""); setObs(""); setErro(""); limparAudio(); }}>
                   <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                     <span style={{ fontWeight: 700, fontSize: 14, lineHeight: "19px" }}>{i.item}</span>
                     <span className="p12 sub">{i.natureza} · {i.qtd}{i.presumida ? " (presumida)" : ""}</span>
@@ -154,11 +215,11 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
 
             {podeDecidir ? (
               <>
-                {s.conflito_n2 && eu.nivel === 2 && <span className="aviso p12">▲ Você é o técnico autor desta OS. A observação é obrigatória.</span>}
+                {s.conflito && <span className="aviso p12">▲ Você é o técnico autor desta OS. A observação é obrigatória.</span>}
                 <section aria-label="Decisão" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <span className="p12" style={{ fontWeight: 700 }}>Sua decisão · {x.item}</span>
                   <div className="decisoes">
-                    {OPCOES.filter((o) => !(o.acao === "aprovar" && x.fase === "n1" && x.cls === "A definir")).map((o) => (
+                    {OPCOES.filter((o) => !(o.acao === "aprovar" && x.pode_reclassificar && x.cls === "A definir")).map((o) => (
                       <button key={o.acao} type="button" className={`decisao d-${o.acao}`} aria-pressed={decisao === o.acao}
                         onClick={() => { setDecisao(o.acao); setMsg(""); }}>{o.nome}</button>
                     ))}
@@ -166,12 +227,29 @@ export function Celular({ eu, aoSair }: { eu: Usuario; aoSair: () => void }) {
                 </section>
                 <div className="campo">
                   <label htmlFor="a-obs" style={{ fontSize: 12, color: "var(--tinta)", fontWeight: 700 }}>Observação{exige ? " (obrigatória)" : ""}</label>
-                  <textarea id="a-obs" rows={3} value={obs} placeholder="Motivo da reprovação ou a correção técnica" onChange={(e) => setObs(e.target.value)} />
+                  <textarea id="a-obs" rows={2} value={obs} placeholder="Motivo da reprovação ou a correção técnica" onChange={(e) => setObs(e.target.value)} />
                 </div>
+                <section aria-label="Áudio" className="cartao">
+                  <button type="button" className={`btn ${gravando ? "gravando" : ""}`} aria-pressed={gravando} onClick={alternarGravacao}
+                    style={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0" /><path d="M12 18v3" /></svg>
+                    <span>{gravando ? "Gravando… toque para parar" : audioId ? "Gravar outro áudio" : "Gravar áudio"}</span>
+                  </button>
+                  {audioUrl && <audio controls src={audioUrl} style={{ width: "100%" }} />}
+                  {avisoAudio && <span className="p12 sub" role="status">{avisoAudio}</span>}
+                  {audioId && (
+                    <div className="campo">
+                      <label htmlFor="a-transc" style={{ fontSize: 12, color: "var(--tinta)", fontWeight: 700 }}>Transcrição do áudio</label>
+                      <textarea id="a-transc" rows={3} value={transcricao} placeholder="O texto do áudio aparece aqui para você conferir"
+                        onChange={(e) => setTranscricao(e.target.value)} />
+                      <span className="p12 sub">O áudio original fica anexado à decisão.</span>
+                    </div>
+                  )}
+                </section>
               </>
             ) : (
               <p className="caixa-info">
-                {x.fase === "n1" ? "Este item ainda aguarda o Nível 1 (Hely). Você avalia depois que ele confirmar a classificação." : `Item em ${x.fase_nome}.`}
+                {x.fase === "nivel" ? `Este item aguarda ${x.nivel_quem || "outro aprovador"} no ${x.fase_nome}.` : `Item em ${x.fase_nome}.`}
               </p>
             )}
           </>

@@ -75,7 +75,7 @@ def texto_contrato(num, obs: str, catalogo: dict, cliente: str, erros: list[str]
     return f"{base}. {obs}" if obs else base
 
 
-def validar(payload: dict, os_row: sqlite3.Row, catalogo: dict) -> tuple[list[dict], bool, str]:
+def validar(payload: dict, os_row: sqlite3.Row, catalogo: dict, contrato_ligado: bool = True) -> tuple[list[dict], bool, str]:
     """Devolve (itens limpos, sem_informacao, motivo). Erro de qualquer item recusa a identificação inteira."""
     erros: list[str] = []
     sem_info = bool(payload.get("sem_informacao"))
@@ -122,6 +122,8 @@ def validar(payload: dict, os_row: sqlite3.Row, catalogo: dict) -> tuple[list[di
         if it["cls"] == regras.CONTRATO:
             if os_row["cliente"] != "HGG":
                 erros.append(f"{pos}: 'Contrato HGG' só vale para OS do HGG (esta é {os_row['cliente']})")
+            elif not contrato_ligado:
+                erros.append(f"{pos}: o critério de contrato do {os_row['cliente']} está desligado; use 'Pedido de compra' ou 'A definir'")
             else:
                 it["contrato_item"] = texto_contrato(b.get("contrato_num"), obs_contrato, catalogo, "HGG", erros, pos)
         else:
@@ -143,7 +145,7 @@ def pendentes(conn: sqlite3.Connection, limite: int = 10) -> list[dict]:
     saida = []
     for o in linhas:
         devolucoes = [r["obs"] for r in conn.execute(
-            "SELECT obs FROM eventos WHERE os = ? AND tipo = 'decisao' AND para = 'relatorio' "
+            "SELECT obs FROM eventos WHERE os = ? AND tipo = 'decisao' "
             "AND json_extract(dados, '$.rodada_nova') = ? ORDER BY id", (o["os"], o["rodada"]))]
         ja = [dict(item=r["item"], natureza=r["natureza"], qtd=r["qtd"], fase=r["fase"]) for r in conn.execute(
             "SELECT item, natureza, qtd, fase FROM itens WHERE os = ? AND fase != 'relatorio' ORDER BY id", (o["os"],))]
@@ -170,7 +172,11 @@ def aplicar(conn: sqlite3.Connection, payload: dict, agente_nome: str, catalogo:
             return {"os": os_num, "repetida": True, "itens": ja["n_itens"]}
         if o["identificacao"] != "pendente":
             raise Conflito("Esta OS não está aguardando identificação.")
-        itens, sem_info, motivo = validar(payload, o, catalogo)
+        ligado = conn.execute("SELECT ligado FROM contratos_cliente WHERE cliente = ?", (o["cliente"],)).fetchone()
+        itens, sem_info, motivo = validar(payload, o, catalogo, bool(ligado and ligado[0]))
+        versao, snapshot = banco.rota_atual(conn)
+        if not versao and not sem_info:
+            raise Conflito("A rota de aprovação ainda não foi configurada (tela Níveis de aprovação).")
         conn.execute("DELETE FROM itens WHERE os = ? AND fase = 'relatorio'", (os_num,))
         agora = banco.agora()
         if sem_info:
@@ -179,12 +185,18 @@ def aplicar(conn: sqlite3.Connection, payload: dict, agente_nome: str, catalogo:
                       "conf": "Baixa", "contrato_item": "", "val_ok": 0, "val_txt": f"Sem informação: {motivo}",
                       "evidencia": ""}]
         for it in itens:
-            fase = "relatorio" if sem_info else "n1"
+            if sem_info:
+                fase, pos, rv = "relatorio", None, None
+            elif regras.rota_do_item(snapshot, it["cls"]):
+                fase, pos, rv = "nivel", 0, versao
+            else:
+                fase, pos, rv = regras.apos_niveis(it["cls"]), None, versao
             conn.execute(
                 "INSERT INTO itens (os, item, natureza, situacao, qtd, presumida, cls, conf, contrato_item, val_ok, "
-                "val_txt, evidencia, fase, sugerido_por, criado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "val_txt, evidencia, fase, nivel_pos, rota_versao, sugerido_por, criado_em) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (os_num, it["item"], it["natureza"], it["situacao"], it["qtd"], it["presumida"], it["cls"], it["conf"],
-                 it["contrato_item"], it["val_ok"], it["val_txt"], it["evidencia"], fase, agente_nome, agora))
+                 it["contrato_item"], it["val_ok"], it["val_txt"], it["evidencia"], fase, pos, rv, agente_nome, agora))
         conn.execute("UPDATE os SET identificacao = ?, atualizada_em = ? WHERE os = ?",
                      ("sem_info" if sem_info else "feita", agora, os_num))
         conn.execute("INSERT INTO identificacoes (chave, os, relato_hash, rodada, agente, n_itens, recebida_em) "

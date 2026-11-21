@@ -1,7 +1,9 @@
 """
 python -m servmat servico                         sobe o painel + API (uvicorn)
 python -m servmat seed-esboco [--forcar]           carrega as 11 OS do esboço (sem aprovação)
-python -m servmat usuario --usuario hely --nome "Hely R Menezes" --nivel 1   (senha: SERVMAT_SENHA ou pergunta)
+python -m servmat usuario --usuario hely --nome "Hely R Menezes" --admin   (senha: SERVMAT_SENHA ou pergunta)
+python -m servmat usuario --usuario renato --nome "Renato Bonfim"
+  Com hely e renato criados, nasce a rota padrão (Nível 1 Hely → Nível 2 Renato). Depois, mude na tela Níveis.
 python -m servmat coleta                           uma coleta pela central (o mesmo que POST /run/coleta)
 """
 from __future__ import annotations
@@ -26,7 +28,7 @@ def main(argv: list[str] | None = None) -> int:
     u = sub.add_parser("usuario")
     u.add_argument("--usuario", required=True)
     u.add_argument("--nome", required=True)
-    u.add_argument("--nivel", type=int, choices=(1, 2), required=True)
+    u.add_argument("--admin", action="store_true", help="edita os níveis, pede ao orçamentista e registra o Pedido")
     u.add_argument("--desativar", action="store_true")
     sub.add_parser("coleta")
     a = p.parse_args(argv)
@@ -53,11 +55,12 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         senha = os.environ.get("SERVMAT_SENHA") or getpass.getpass("Senha (10+ caracteres): ")
         conn.execute(
-            "INSERT INTO usuarios (usuario, nome, nivel, senha_hash) VALUES (?,?,?,?) "
-            "ON CONFLICT(usuario) DO UPDATE SET nome = excluded.nome, nivel = excluded.nivel, "
+            "INSERT INTO usuarios (usuario, nome, admin, senha_hash) VALUES (?,?,?,?) "
+            "ON CONFLICT(usuario) DO UPDATE SET nome = excluded.nome, admin = excluded.admin, "
             "senha_hash = excluded.senha_hash, ativo = 1",
-            (a.usuario.lower(), a.nome, a.nivel, auth.hash_senha(senha)))
-        print(f"usuário {a.usuario.lower()} pronto (Nível {a.nivel})")
+            (a.usuario.lower(), a.nome, int(a.admin), auth.hash_senha(senha)))
+        banco.garantir_rota(conn)
+        print(f"usuário {a.usuario.lower()} pronto{' (administrador)' if a.admin else ''}")
         return 0
     if a.cmd == "coleta":
         rel = coleta.coletar(conn, Central(cfg.central_url, cfg.central_token), cfg.coleta_cfg())

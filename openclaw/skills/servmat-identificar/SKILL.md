@@ -68,7 +68,8 @@ Campos:
 - `qtd`: como está no relato ("1 un", "2 un", "1 m", "1 sv"). Sem número no texto: `"não informada"`. Se você
   deduziu a quantidade (ex.: "o compressor" → 1 un), use `"presumida": true`.
 - `cls`:
-  - `Contrato HGG`: só para OS do cliente **HGG** e só quando o item está no catálogo. Informe `contrato_num`.
+  - `Contrato HGG`: só para OS do cliente **HGG**, só com o critério de contrato ligado (lista
+    `_criterio_de_contrato_ligado` do `$S catalogo`) e só quando o item está no catálogo. Informe `contrato_num`.
   - `Pedido de compra`: fora do catálogo ou de outro cliente. Explique em `contrato_obs` (ex.: "Fora da faixa do
     item 58 (CONTATORA 18 A 32 AMPERES).").
   - `A definir`: quando há mais de um item possível ou falta dado (ex.: tipo da máquina). Diga o que falta em `contrato_obs`.

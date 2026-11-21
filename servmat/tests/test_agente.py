@@ -27,7 +27,8 @@ def test_aceita_e_grava_no_nivel_1(conn):
                      conf="Média", evidencia="precisa trocar a contatora 40A")]}, "agente:t", CAT)
     assert r == {"os": "90000001", "repetida": False, "itens": 2, "sem_informacao": False}
     linhas = conn.execute("SELECT * FROM itens WHERE os = '90000001' ORDER BY id").fetchall()
-    assert [x["fase"] for x in linhas] == ["n1", "n1"]
+    assert [(x["fase"], x["nivel_pos"]) for x in linhas] == [("nivel", 0), ("nivel", 0)]
+    assert linhas[0]["rota_versao"] == 1
     assert linhas[0]["contrato_item"] == "Item do contrato: 57 · FILTRO SECADOR"
     # campo "Nao" + troca aplicada = divergência, mesmo que o agente diga que está coerente
     assert linhas[0]["val_ok"] == 0 and linhas[0]["val_txt"].startswith("Divergência")
@@ -79,3 +80,10 @@ def test_pendentes_traz_relato_e_hash(conn):
 
 def test_normalizar_tolera_acento_e_pontuacao():
     assert agente.normalizar("Condesador  muito amassado,") in agente.normalizar("o condesador muito AMASSADO, com...")
+
+
+def test_contrato_desligado_recusa_contrato(conn):
+    conn.execute("UPDATE contratos_cliente SET ligado = 0 WHERE cliente = 'HGG'")
+    o = nova_os(conn)
+    with pytest.raises(agente.ErroIdentificacao, match="critério de contrato do HGG está desligado"):
+        agente.aplicar(conn, {"os": o["os"], "relato_hash": o["relato_hash"], "itens": [item()]}, "agente:t", CAT)

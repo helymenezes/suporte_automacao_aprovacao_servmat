@@ -180,3 +180,21 @@ main.fila { padding: 24px 32px 40px; display: flex; flex-direction: column; gap:
 .d-devolver[aria-pressed="true"] { background: var(--atencao-esc); color: #fff; }
 .cel-rodape { position: sticky; bottom: 0; padding: 10px 16px 14px; background: var(--fundo); border-top: 1px solid var(--linha); display: flex; flex-direction: column; gap: 8px; }
 .cel-rodape .btn { min-height: 52px; font-size: 15px; font-weight: 800; }
+.btn.gravando { background: var(--erro); border-color: var(--erro); color: #fff; }
+
+/* acompanhamento do pedido */
+:root { --info: #1d5f99; }
+.cab-ped, .linha-ped { display: grid; grid-template-columns: 100px minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.9fr) minmax(0, 1.3fr) 90px; gap: 12px; padding: 12px 16px; align-items: center; }
+.cab-ped { padding-top: 10px; padding-bottom: 10px; background: var(--claro); font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--sub); }
+
+/* níveis */
+.alterna { min-height: 44px; padding: 0 12px; border-radius: var(--raio-p); font-weight: 700; font-size: 12px; cursor: pointer; background: #fff; border: 2px solid; }
+.alterna:disabled { cursor: default; }
+.alterna-pedido { border-color: var(--atencao-esc); color: var(--atencao-esc); }
+.alterna-pedido[aria-pressed="true"] { background: var(--atencao-esc); color: #fff; }
+.alterna-contrato { border-color: var(--teal-esc); color: var(--teal-esc); }
+.alterna-contrato[aria-pressed="true"] { background: var(--teal-esc); color: #fff; }
+.alterna-contrato[aria-pressed="false"]:disabled { border-color: var(--linha); color: var(--sub); }
+.icone { width: 44px; height: 44px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: #fff; color: var(--teal); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.icone.perigo { color: var(--erro); }
+.campo input:disabled, .campo select:disabled { background: var(--fundo); color: var(--tinta); }

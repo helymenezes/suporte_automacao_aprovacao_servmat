@@ -12,6 +12,13 @@ Entregue **sem nada ligado**: o contêiner sobe, mas as agendas do OpenClaw só 
   compartilhada (ver `openclaw/AGENDAS.md`). A porta nunca abre para a internet.
 - **S-03 · Catálogo:** trocar `servmat/config/catalogo.json` pelo `itens.json` completo do contrato HGG (39 itens) e
   tirar o `_incompleto`.
+- **S-05 · WhatsApp:** decidir a instância WAHA e o número que falam com o orçamentista (pode ser a dedicada do
+  fechamento-os ou uma nova, como na D-07) e conferir o número do orçamentista. Ligar `SERVMAT_ENVIO_REAL=1` só depois
+  de uma mensagem de teste.
+- **S-06 · Transcrição:** escolher o serviço (API da OpenAI, Groq ou Whisper local; o local pesa na VPS02). Áudio de
+  avaliação é dado pessoal (voz): fica em `dados/audios/`, fora do backup MEGA, até decidir a retenção.
+- **S-07 · Integrações:** o sistema comercial e a planilha do cliente ainda não têm leitor. A rota
+  `/api/integracao/comercial|planilha` está pronta; até lá, o PCM usa "Registrar" na tela do Pedido.
 - **S-04 · Memória:** a VPS02 usa swap todo dia. O contêiner fica limitado a 256 MB e 0,5 CPU.
 
 ## Subir
@@ -22,8 +29,9 @@ cp deploy/servmat/.env.example /opt/servmat/.env && chmod 600 /opt/servmat/.env 
 export SERVMAT_HOST_DIR=/opt/servmat
 docker compose -f deploy/servmat/docker-compose.yml build
 docker compose -f deploy/servmat/docker-compose.yml up -d
-docker compose -f deploy/servmat/docker-compose.yml exec servmat python -m servmat usuario --usuario hely --nome "Hely R Menezes" --nivel 1
-docker compose -f deploy/servmat/docker-compose.yml exec servmat python -m servmat usuario --usuario renato --nome "Renato Bonfim" --nivel 2
+docker compose -f deploy/servmat/docker-compose.yml exec servmat python -m servmat usuario --usuario hely --nome "Hely R Menezes" --admin
+docker compose -f deploy/servmat/docker-compose.yml exec servmat python -m servmat usuario --usuario renato --nome "Renato Bonfim"
+docker compose -f deploy/servmat/docker-compose.yml exec servmat python -m servmat usuario --usuario celso --nome "Celso"   # se for entrar num nível
 tailscale serve --bg --https=8443 http://127.0.0.1:8792
 ```
 
