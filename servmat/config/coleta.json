@@ -1,10 +1,10 @@
 {
-  "_pendente": "P-01: conferir na central os nomes reais dos campos do relato, da pergunta 'Utilizou peça' e do equipamento antes do primeiro uso.",
+  "_pendente": "P-01: pergunta confirmada na central em 21/11/2026 (UTILIZOU ALGUMA PEÇA?:). Falta confirmar o campo do relato; a listagem traz equipmentsId, não o nome do equipamento.",
   "dias": 15,
   "campos": "taskID,taskUrl,taskStatus,finished,checkInDate,checkOutDate,taskDate,taskType,taskTypeDescription,customerId,customerDescription,equipmentsId,report,userToName,questionnaires,dateLastUpdate",
   "campo_relato": "report",
   "campo_equipamento": "equipmentName",
-  "pergunta_utilizou": "Utilizou peça",
+  "pergunta_utilizou": "Utilizou alguma peça",
   "clientes": {
     "HGG": ["HGG"],
     "IBIS": ["IBIS"],
