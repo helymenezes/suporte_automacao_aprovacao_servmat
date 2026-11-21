@@ -142,3 +142,26 @@ def carregar(conn: sqlite3.Connection, forcar: bool = False) -> int:
                  versao if pos is not None else None, "esboço", agora))
         banco.evento(conn, "*", "seed_esboco", "seed", dados={"os": len(OS), "itens": len(ITENS)})
     return len(ITENS)
+
+
+def ensaio(conn: sqlite3.Connection, forcar: bool = False) -> int:
+    """As mesmas 11 OS do esboço, mas SEM itens e como `pendente`: o agente identifica e o Hely compara com a
+    classificação feita à mão (lista ITENS acima)."""
+    existentes = conn.execute("SELECT COUNT(*) FROM os").fetchone()[0]
+    if existentes and not forcar:
+        raise SystemExit("O banco já tem OS. Use --forcar para apagar e carregar o ensaio.")
+    agora = banco.agora()
+    with banco.Transacao(conn):
+        if forcar:
+            for t in ("eventos", "audios", "envios", "pedidos", "itens", "identificacoes", "os"):
+                conn.execute(f"DELETE FROM {t}")
+        for o in OS:
+            o = {"equipamento": "", "origem": "", **o}
+            conn.execute(
+                "INSERT INTO os (os, cliente, area, equipamento, tipo, tecnico, relato, utilizou, relato_hash, origem, "
+                "prog_txt, prog_meta, identificacao, coletada_em, atualizada_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (o["os"], o["cliente"], o["area"], o["equipamento"], o["tipo"], o["tecnico"], o["relato"], o["utilizou"],
+                 agente.hash_relato(o["relato"], o["utilizou"]), o["origem"], o["prog_txt"], o["prog_meta"],
+                 "pendente", agora, agora))
+        banco.evento(conn, "*", "ensaio_esboco", "seed", dados={"os": len(OS)})
+    return len(OS)

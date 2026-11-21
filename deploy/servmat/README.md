@@ -42,7 +42,10 @@ Opcional, para conferir as telas antes da coleta real:
 
 1. Cofre do OpenClaw: `SERVMAT_URL`, `SERVMAT_AGENTE_TOKEN`, `SERVMAT_RUN_TOKEN`.
 2. Copiar `openclaw/skills/servmat-identificar/` para as skills do workspace.
-3. Testar à mão: `servmat.sh pendentes` dentro do contêiner do OpenClaw.
+3. Testar à mão: `servmat.sh pendentes` dentro do contêiner do OpenClaw. Num banco de teste, `python -m servmat ensaio`
+   põe OS pendentes para a primeira execução manual.
+3b. Catálogo de uso: `python -m servmat historico --desde 2026-02-01 --clientes HGG,CAMIL` e a skill `servmat-catalogo`
+   (ver `openclaw/AGENDAS.md`).
 4. Criar as agendas `servmat-coleta` e `servmat-identificar` (`openclaw/AGENDAS.md`), primeiro com uma execução
    manual de cada e o Hely conferindo as sugestões no painel.
 

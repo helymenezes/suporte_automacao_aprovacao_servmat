@@ -31,6 +31,23 @@ Instale a pasta `openclaw/skills/servmat-identificar` nas skills do workspace do
 
 Sugestão de modelo: o mesmo das rotinas atuais com fallback. A skill limita o trabalho a 10 OS por execução.
 
+## `servmat-catalogo` (agente, sob demanda)
+
+Não é agenda: roda à mão quando o Hely quiser montar ou refazer o catálogo de uso de um cliente.
+
+1. No servidor: `docker compose ... exec servmat python -m servmat historico --desde 2026-02-01 --clientes HGG,CAMIL`.
+2. No OpenClaw, com a skill `openclaw/skills/servmat-catalogo` instalada:
+   > Use a skill servmat-catalogo. Monte o catálogo de uso da CAMIL desde 2026-02-01 e me mande o resumo.
+   (repita para o HGG).
+3. Conferir: `python -m servmat catalogo --cliente CAMIL --saida /tmp/camil.json` e, se estiver bom,
+   `python -m servmat catalogo --aprovar <id> --por hely` (ou pelo `POST /api/catalogo-proposto/{id}/aprovar`).
+
+## Ensaio da identificação (antes de ligar a coleta)
+
+`python -m servmat ensaio --forcar` (as 11 OS do esboço, sem itens) ou `python -m servmat ensaio --do-historico 10
+--cliente CAMIL`. Depois, uma execução manual da `servmat-identificar` e o Hely confere as sugestões no painel.
+O `--forcar` apaga as OS e itens do banco: só num banco de teste.
+
 ## Endereço do serviço visto de dentro do OpenClaw
 
 O serviço escuta em `SERVMAT_HOST:SERVMAT_PORTA`. Duas opções (decidir na implantação, item S-02):

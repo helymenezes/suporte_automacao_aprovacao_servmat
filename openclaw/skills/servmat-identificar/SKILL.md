@@ -24,7 +24,8 @@ Variáveis exigidas no ambiente (cofre do OpenClaw): `SERVMAT_URL` e `SERVMAT_AG
 ## Passo a passo
 
 1. Rode `$S pendentes`. Se a lista vier vazia, responda só "Nenhuma OS pendente." e pare.
-2. Rode `$S catalogo` uma vez.
+2. Rode `$S catalogo` uma vez. Se ele trouxer `uso.<CLIENTE>` (catálogo de uso aprovado pelo Hely), use o `nome`
+   de lá sempre que o item do relato for o mesmo (confira os `sinonimos`). Item novo, fora da lista, continua valendo.
 3. Para **cada** OS da lista, leia `relato` e `utilizou` (resposta do campo "Utilizou peça" do Auvo) e monte o JSON
    abaixo. Se a OS tiver `devolucoes_do_nivel_1`, é uma **correção pedida pelo Hely**: leia o motivo e corrija só o
    que ele pediu. Não repita itens que já estão em `ja_registrados`.
