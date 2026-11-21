@@ -1,0 +1,7 @@
+# Versões fixas. O núcleo (regras, banco, agente, coleta) usa só a biblioteca padrão.
+fastapi==0.115.6
+uvicorn==0.34.0
+pydantic==2.10.4
+# testes
+pytest==8.3.4
+httpx==0.28.1

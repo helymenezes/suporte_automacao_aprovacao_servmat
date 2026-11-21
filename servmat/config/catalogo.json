@@ -1,0 +1,17 @@
+{
+  "_fonte": "Itens do contrato HGG citados no esboço do painel (21/11/2026). O catálogo completo tem 39 itens (itens.json das rotinas da VPS02): substituir este arquivo por ele e tirar o _incompleto. As descrições dos itens 42, 43, 55 e 56 foram resumidas do esboço, não copiadas do contrato.",
+  "HGG": {
+    "_incompleto": true,
+    "itens": {
+      "1": "CORREIAS PARA EQUIP. DE AR CONDICIONADO",
+      "8": "SOLDA FOSCOPER",
+      "42": "COMPRESSOR ROTATIVO INVERTER 9.000 BTU",
+      "43": "COMPRESSOR ROTATIVO INVERTER 12.000 BTU",
+      "50": "RECONDICIONAMENTO MOTOR ELÉTRICO (FANCOIL, EXAUSTOR E VENTILADOR)",
+      "55": "FILTRO DE AR SPLIT HIGH WALL",
+      "56": "FILTRO DE AR PISO TETO",
+      "57": "FILTRO SECADOR",
+      "58": "CONTATORA 18 A 32 AMPERES"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+# servmat · painel + API num contêiner só, sem porta aberta para fora.
+# SERVMAT_HOST_DIR = pasta ABSOLUTA no host com o .env (600) e a pasta dados/ (ex.: /opt/servmat).
+# network_mode host: escuta em SERVMAT_HOST:SERVMAT_PORTA (padrão 127.0.0.1:8792). Para o agente do OpenClaw
+# alcançar a API, use o IP do docker0 (ex.: 172.17.0.1) em SERVMAT_HOST — ver openclaw/AGENDAS.md.
+# O painel das pessoas sai pela Tailscale: tailscale serve --bg --https=8443 http://127.0.0.1:8792
+services:
+  servmat:
+    build:
+      context: ../..
+      dockerfile: deploy/servmat/Dockerfile
+    image: servmat:local
+    env_file: ${SERVMAT_HOST_DIR:?defina SERVMAT_HOST_DIR}/.env
+    environment:
+      SERVMAT_BANCO: /dados/servmat.sqlite
+    volumes:
+      - ${SERVMAT_HOST_DIR}/dados:/dados
+    network_mode: host
+    user: "${UID:-1000}:${GID:-1000}"
+    mem_limit: 256m
+    cpus: 0.5
+    restart: unless-stopped
