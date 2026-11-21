@@ -47,9 +47,10 @@ Auvo ──(central, só leitura)──▶ coleta ──▶ OS com relato (pende
 cd servmat
 pip install -r requirements.txt
 export SERVMAT_SEGREDO=$(python -c 'import secrets;print(secrets.token_urlsafe(48))') SERVMAT_COOKIE_SEGURO=0
+# a senha (10+ caracteres) é pedida no terminal, ou vem de SERVMAT_SENHA
 python -m servmat usuario --usuario hely --nome "Hely R Menezes" --admin
 python -m servmat usuario --usuario renato --nome "Renato Bonfim"   # com os dois, nasce a rota padrão
-python -m servmat seed-esboco                       # as 11 OS do esboço, nada aprovado
+python -m servmat seed-esboco                       # as 11 OS do esboço, nada aprovado (exige hely e renato)
 python -m pytest -q                                 # 46 testes
 
 # telas (outro terminal)
