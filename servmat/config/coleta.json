@@ -1,0 +1,16 @@
+{
+  "_pendente": "P-01: conferir na central os nomes reais dos campos do relato, da pergunta 'Utilizou peça' e do equipamento antes do primeiro uso.",
+  "dias": 15,
+  "campos": "taskID,taskUrl,taskStatus,finished,checkInDate,checkOutDate,taskDate,taskType,taskTypeDescription,customerId,customerDescription,equipmentsId,report,userToName,questionnaires,dateLastUpdate",
+  "campo_relato": "report",
+  "campo_equipamento": "equipmentName",
+  "pergunta_utilizou": "Utilizou peça",
+  "clientes": {
+    "HGG": ["HGG"],
+    "IBIS": ["IBIS"],
+    "CAMIL": ["CAMIL"],
+    "BLEND": ["BLEND"],
+    "HEJ": ["HEJ", "JATAI", "JATAÍ"]
+  },
+  "tipos": {}
+}
