@@ -77,6 +77,7 @@ def test_proposta_aceita_e_aprovacao(com_historico):
     ({"os_exemplo": ["5003"]}, "não estão no histórico do CAMIL"),
     ({"natureza": "Coisa"}, "natureza"),
     ({"contrato_num": 57}, "só para HGG"),
+    ({"os_exemplo": 5001}, "lista de números de OS"),
 ])
 def test_proposta_recusada(com_historico, mudar, trecho):
     it = dict(proposta()["itens"][0], **mudar)

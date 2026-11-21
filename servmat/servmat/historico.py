@@ -172,7 +172,11 @@ def validar(conn: sqlite3.Connection, payload: dict) -> tuple[str, str, list[dic
         if natureza not in NATUREZAS:
             erros.append(f"{pos}: 'natureza' = {natureza!r}; use um de {list(NATUREZAS)}")
         sinonimos = _lista_textos(b.get("sinonimos"), "sinonimos", 15, erros, pos)
-        exemplos = [str(x) for x in (b.get("os_exemplo") or []) if str(x).strip()]
+        brutos = b.get("os_exemplo")
+        if not isinstance(brutos, list) or not all(isinstance(x, (str, int)) for x in brutos):
+            erros.append(f"{pos}: 'os_exemplo' precisa ser lista de números de OS")
+            brutos = []
+        exemplos = [str(x) for x in brutos if str(x).strip()]
         if not 1 <= len(exemplos) <= 5:
             erros.append(f"{pos}: 'os_exemplo' precisa de 1 a 5 OS do histórico")
         evid = " ".join(str(b.get("evidencia") or "").split())
