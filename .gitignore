@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+servmat/dados/
+*.sqlite
+*.sqlite-*
+.env
+web/node_modules/
+web/dist/
