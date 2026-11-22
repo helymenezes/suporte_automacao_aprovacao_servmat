@@ -71,7 +71,7 @@ imutáveis) · `contratos_cliente` · `pedidos` (OS × rota) · `envios` (fila d
 ## Pendências
 
 - **P-01** Nomes de campo do Auvo na central (relato, "Utilizou peça", equipamento): `config/coleta.json`.
-- **P-02** Catálogo completo do contrato HGG (39 itens) em `config/catalogo.json`. O catálogo de uso de HGG e CAMIL desde 01/02/2026 sai da skill `servmat-catalogo` depois do `historico` rodar na VPS02.
+- **P-02** Catálogo completo do contrato HGG (64 itens) em `config/catalogo.json`. O catálogo de uso de HGG e CAMIL desde 01/02/2026 sai da skill `servmat-catalogo` depois do `historico` rodar na VPS02.
 - **P-03** Leitores do sistema comercial e da planilha do cliente: a rota de entrada existe; falta quem leia.
 - **P-04** Instância WAHA e número do orçamentista; teste de envio antes de `SERVMAT_ENVIO_REAL=1`.
 - **P-05** Serviço de transcrição e retenção dos áudios (dado pessoal: voz).

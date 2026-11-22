@@ -53,3 +53,22 @@ def test_relato_mudou_depois_de_decisao_so_alerta(conn):
     r = coleta.coletar(conn, c, CFG)
     assert r.alertas == 1
     assert conn.execute("SELECT COUNT(*) FROM itens WHERE os = '82150519'").fetchone()[0] == 1
+
+
+def test_central_manda_host_quando_configurado():
+    vistos = []
+
+    def enviar(metodo, url, cabecalhos, corpo):
+        vistos.append(cabecalhos)
+        return 200, b'{"result": {"entityList": [], "pagedSearchReturnData": {"totalItems": 0}}}'
+
+    Central("http://central-gw:8080", "tok", transporte=enviar, host="login.exemplo.digital").get("/api/auvo/tasks/")
+    Central("http://central-gw:8080", "tok", transporte=enviar, host="").get("/api/auvo/tasks/")
+    assert vistos[0]["Host"] == "login.exemplo.digital"
+    assert "Host" not in vistos[1]
+
+
+def test_central_recusa_host_invalido():
+    import pytest
+    with pytest.raises(ValueError):
+        Central("http://central-gw:8080", "tok", host="evil.com\r\nX: y")

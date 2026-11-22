@@ -5,6 +5,7 @@ do Auvo. Só rotas da allowlist, só GET, token no cabeçalho e nunca em log ou 
 from __future__ import annotations
 
 import json
+import os
 import re
 import urllib.error
 import urllib.parse
@@ -50,13 +51,20 @@ class Listagem:
 
 
 class Central:
-    def __init__(self, base: str, token: str, transporte: Transporte | None = None, page_size: int = 100):
+    def __init__(self, base: str, token: str, transporte: Transporte | None = None, page_size: int = 100,
+                 host: str | None = None):
         if not base.startswith(("https://", "http://127.0.0.1", "http://localhost", "http://central")):
             raise ValueError("central só por https ou rede interna")
         if not token:
             raise ValueError("SERVMAT_CENTRAL_TOKEN vazio")
         self.base = base.rstrip("/")
         self._auth = {"Authorization": f"Bearer {token}"}
+        # Na rede interna da VPS02 o gateway da central escolhe o site pelo nome: SERVMAT_CENTRAL_HOST manda esse nome
+        # (ex.: login.hyperthinking.digital) sem passar pelo Cloudflare, que recusa o urllib (erro 1010).
+        host = os.environ.get("SERVMAT_CENTRAL_HOST", "") if host is None else host
+        if host and not re.fullmatch(r"[A-Za-z0-9.-]+", host):
+            raise ValueError("SERVMAT_CENTRAL_HOST inválido")
+        self._host = {"Host": host} if host else {}
         self._enviar = transporte or transporte_urllib()
         self.page_size = page_size
 
@@ -64,7 +72,7 @@ class Central:
         if rota not in ROTAS:
             raise ValueError(f"rota fora da allowlist: {rota}")
         url = self.base + rota + ("?" + urllib.parse.urlencode(params) if params else "")
-        status, corpo = self._enviar("GET", url, {"Accept": "application/json", **self._auth}, None)
+        status, corpo = self._enviar("GET", url, {"Accept": "application/json", **self._host, **self._auth}, None)
         if status == 404:
             return None
         if status != 200:
