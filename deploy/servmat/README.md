@@ -9,8 +9,14 @@ Entregue **sem nada ligado**: o contêiner sobe, mas as agendas do OpenClaw só 
   (`campo_relato`, `campo_equipamento`, `pergunta_utilizou`). Sem o nome do equipamento na listagem, a coluna mostra
   "Equipamento não informado" até a central ganhar uma rota só de leitura para equipamentos.
 - **S-02 · Rede:** decidir como o OpenClaw alcança a API: `SERVMAT_HOST` = IP do `docker0` ou rede Docker
-  compartilhada (ver `openclaw/AGENDAS.md`). A porta nunca abre para a internet.
-- **S-03 · Catálogo:** trocar `servmat/config/catalogo.json` pelo `itens.json` completo do contrato HGG (39 itens) e
+  compartilhada (ver `openclaw/AGENDAS.md`). A porta nunca abre para a internet. Na VPS02 (21/11/2026) ficou a rede
+  compartilhada: contêiner `servmat` na rede `ia-stack_default`, alcançado pelo OpenClaw em `http://servmat:8792`
+  (pelo IP do `docker0` a conexão não passa).
+- **S-02b · Leitura da central:** o servmat lê a central pela rede interna, sem passar pelo Cloudflare (que recusa o
+  `urllib` com erro 1010): `SERVMAT_CENTRAL_URL=http://central-otp-test-gateway-1:8080` e
+  `SERVMAT_CENTRAL_HOST=login.hyperthinking.digital` (o gateway escolhe o site pelo nome). O token é o
+  `LEITURA_TOKEN` da central, que só vale para `GET /api/auvo/*`; o `PROPOSAL_TOKEN` do robô não é usado.
+- **S-03 · Catálogo:** trocar `servmat/config/catalogo.json` pelo `itens.json` completo do contrato HGG (64 itens) e
   tirar o `_incompleto`.
 - **S-05 · WhatsApp:** decidir a instância WAHA e o número que falam com o orçamentista (pode ser a dedicada do
   fechamento-os ou uma nova, como na D-07) e conferir o número do orçamentista. Ligar `SERVMAT_ENVIO_REAL=1` só depois
@@ -42,7 +48,10 @@ Opcional, para conferir as telas antes da coleta real:
 
 1. Cofre do OpenClaw: `SERVMAT_URL`, `SERVMAT_AGENTE_TOKEN`, `SERVMAT_RUN_TOKEN`.
 2. Copiar `openclaw/skills/servmat-identificar/` para as skills do workspace.
-3. Testar à mão: `servmat.sh pendentes` dentro do contêiner do OpenClaw.
+3. Testar à mão: `servmat.sh pendentes` dentro do contêiner do OpenClaw. Num banco de teste, `python -m servmat ensaio`
+   põe OS pendentes para a primeira execução manual.
+3b. Catálogo de uso: `python -m servmat historico --desde 2026-02-01 --clientes HGG,CAMIL` e a skill `servmat-catalogo`
+   (ver `openclaw/AGENDAS.md`).
 4. Criar as agendas `servmat-coleta` e `servmat-identificar` (`openclaw/AGENDAS.md`), primeiro com uma execução
    manual de cada e o Hely conferindo as sugestões no painel.
 

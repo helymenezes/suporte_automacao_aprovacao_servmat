@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS os (
   origem         TEXT NOT NULL DEFAULT '',
   prog_txt       TEXT NOT NULL DEFAULT '',
   prog_meta      TEXT NOT NULL DEFAULT '',
+  visita_em      TEXT NOT NULL DEFAULT '',  -- check-in no Auvo (AAAA-MM-DDTHH:MM:SS): ordena o painel
   task_url       TEXT NOT NULL DEFAULT '',
   identificacao  TEXT NOT NULL DEFAULT 'pendente' CHECK (identificacao IN ('pendente', 'feita', 'sem_info')),
   rodada         INTEGER NOT NULL DEFAULT 1 CHECK (rodada >= 1),
@@ -192,6 +193,9 @@ def conectar(caminho: Path | str) -> sqlite3.Connection:
 
 def criar(conn: sqlite3.Connection) -> None:
     conn.executescript(ESQUEMA)
+    # Bancos criados antes de 26/11/2026 não têm visita_em: a coluna entra vazia e a próxima coleta preenche.
+    if "visita_em" not in {r[1] for r in conn.execute("PRAGMA table_info(os)")}:
+        conn.execute("ALTER TABLE os ADD COLUMN visita_em TEXT NOT NULL DEFAULT ''")
 
 
 class Transacao:

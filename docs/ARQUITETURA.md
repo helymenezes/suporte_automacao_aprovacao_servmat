@@ -24,6 +24,8 @@ Acompanhamento do Pedido, Níveis de aprovação e Avaliação no celular.
 | S-D14 | **Acompanhamento do Pedido** por OS e rota (compra/contrato). Pedido, vínculo, NF, Celso e execução vêm do sistema comercial; aceite, da planilha. Até existirem os leitores, o administrador registra à mão (fica na trilha como `manual:<usuário>`). | O painel lê; não inventa estado comercial. |
 | S-D15 | **WhatsApp ao orçamentista** pelo WAHA (`sendText`), com fila `envios`, chave de idempotência e recibo. Sem resposta do WAHA = `INCERTO`, que nunca reenvia sozinho; o administrador marca "Chegou" ou "Não chegou". Sem `SERVMAT_ENVIO_REAL=1`, `SIMULADO`. | Mesmo cuidado da fila do fechamento-os: nunca mandar duas vezes. |
 | S-D16 | Cobrança enviada (compra) ou Celso autorizado + execução concluída (contrato) → itens vão para Concluído. | O fluxo termina sozinho quando a última etapa é registrada. |
+| S-D18 | **Catálogo de uso por cliente** (HGG, CAMIL), montado pelo agente (skill `servmat-catalogo`) a partir do histórico de OS desde 01/02/2026, guardado na tabela `historico` (fora da fila). A proposta é rascunho, a evidência de cada item é conferida contra o relato das OS de exemplo, e só o administrador aprova. A aprovada vai ao agente de identificação em `uso`. | O mesmo item escrito de jeitos diferentes vira um nome só. Não substitui o catálogo do contrato HGG, que continua decidindo "Contrato HGG". |
+| S-D19 | **Ensaio**: `python -m servmat ensaio` põe as 11 OS do esboço como pendentes e sem itens (ou `--do-historico N`, OS reais do histórico). | Testar a skill de identificação no OpenClaw e comparar com a classificação feita à mão, sem ligar a coleta. |
 | S-D17 | **Áudio** gravado no navegador, guardado em `dados/audios/` e ligado à decisão. Transcrição opcional por serviço compatível com `POST /v1/audio/transcriptions`; o texto sempre passa pela pessoa antes de entrar na observação. | Avaliação rápida no campo, sem depender de um fornecedor. |
 
 ## Fases do item
@@ -54,6 +56,8 @@ Cobrança) são calculadas dos itens e da situação do Pedido em `regras.etapas
 | `POST /api/integracao/comercial` · `/planilha` `{registros}` | leitor | Pedido/NF/Celso/execução · aceite |
 | `GET /api/agente/pendentes`, `GET /api/agente/catalogo` | agente | o que identificar |
 | `POST /api/agente/identificacoes` | agente | sugestões de uma OS (formato na SKILL.md) |
+| `GET /api/agente/historico?cliente=&apos=&desde=` · `POST /api/agente/catalogo-proposto` | agente | histórico em páginas · proposta de catálogo de uso |
+| `GET /api/catalogo-proposto` · `POST /api/catalogo-proposto/{id}/aprovar` | pessoa · admin | ver e aprovar a proposta |
 | `POST /run/coleta`, `GET /run/status` | agenda | coleta pela central · contagens |
 | `GET /health` | todos | saúde |
 
@@ -62,12 +66,12 @@ Cobrança) são calculadas dos itens e da situação do Pedido em `regras.etapas
 `os` (relato, hash, rodada, situação da identificação) · `itens` (sugestão, fase, posição no nível, versão da rota,
 versão do item) · `eventos` (só acréscimo) · `usuarios` (scrypt, admin) · `niveis` (rota em edição) · `rotas` (versões
 imutáveis) · `contratos_cliente` · `pedidos` (OS × rota) · `envios` (fila do WhatsApp) · `audios` · `integracoes`
-(última leitura) · `identificacoes` (idempotência do agente). Esquema em `servmat/servmat/banco.py`.
+(última leitura) · `identificacoes` (idempotência do agente) · `historico` (OS lidas para o catálogo, fora da fila) · `catalogo_proposto` (rascunho, aprovado, substituído; esquema em `historico.py`). Esquema em `servmat/servmat/banco.py`.
 
 ## Pendências
 
 - **P-01** Nomes de campo do Auvo na central (relato, "Utilizou peça", equipamento): `config/coleta.json`.
-- **P-02** Catálogo completo do contrato HGG (39 itens) em `config/catalogo.json`.
+- **P-02** Catálogo completo do contrato HGG (64 itens) em `config/catalogo.json`. O catálogo de uso de HGG e CAMIL desde 01/02/2026 sai da skill `servmat-catalogo` depois do `historico` rodar na VPS02.
 - **P-03** Leitores do sistema comercial e da planilha do cliente: a rota de entrada existe; falta quem leia.
 - **P-04** Instância WAHA e número do orçamentista; teste de envio antes de `SERVMAT_ENVIO_REAL=1`.
 - **P-05** Serviço de transcrição e retenção dos áudios (dado pessoal: voz).

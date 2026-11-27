@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import agente, audio, auth, banco, coleta, envio, pedidos, regras
+from . import agente, audio, auth, banco, coleta, envio, historico, pedidos, regras
 from .central import Central
 from .config import Config
 
@@ -65,6 +65,7 @@ def criar_app(cfg: Config) -> FastAPI:
     catalogo = agente.carregar_catalogo(cfg.catalogo)
     inicial = banco.conectar(cfg.banco)
     banco.criar(inicial)
+    historico.criar(inicial)
     banco.garantir_rota(inicial)
     inicial.close()
 
@@ -98,6 +99,10 @@ def criar_app(cfg: Config) -> FastAPI:
     for erro, codigo in ((regras.ErroRegra, 422), (pedidos.ErroPedido, 422), (audio.ErroAudio, 422),
                          (agente.Conflito, 409)):
         app.add_exception_handler(erro, lambda _r, e, c=codigo: JSONResponse({"detail": str(e)}, status_code=c))
+
+    @app.exception_handler(historico.ErroProposta)
+    async def _erro_proposta(_req, e: historico.ErroProposta):
+        return JSONResponse({"detail": "proposta de catálogo recusada", "erros": e.erros}, status_code=422)
 
     @app.exception_handler(agente.ErroIdentificacao)
     async def _erro_ident(_req, e: agente.ErroIdentificacao):
@@ -232,6 +237,18 @@ def criar_app(cfg: Config) -> FastAPI:
         return FileResponse(cfg.pasta_audios / a["arquivo"], media_type=a["mime"])
 
     # ---------- níveis de aprovação ----------
+    @app.get("/api/catalogo-proposto")
+    def catalogo_proposto(cliente: str | None = None, _u=Depends(usuario_atual),
+                          conn: sqlite3.Connection = Depends(conexao)):
+        return {"propostas": historico.propostas(conn, cliente)}
+
+    @app.post("/api/catalogo-proposto/{proposta_id}/aprovar")
+    def catalogo_aprovar(proposta_id: int, u=Depends(admin), conn: sqlite3.Connection = Depends(conexao)):
+        try:
+            return historico.aprovar(conn, proposta_id, u["usuario"])
+        except KeyError:
+            raise HTTPException(404, "proposta não encontrada") from None
+
     @app.get("/api/niveis")
     def ver_niveis(u=Depends(usuario_atual), conn: sqlite3.Connection = Depends(conexao)):
         versao, _ = banco.rota_atual(conn)
@@ -349,7 +366,24 @@ def criar_app(cfg: Config) -> FastAPI:
     @app.get("/api/agente/catalogo", dependencies=[Depends(exige(cfg.agente_token))])
     def agente_catalogo(conn: sqlite3.Connection = Depends(conexao)):
         ligados = [r[0] for r in conn.execute("SELECT cliente FROM contratos_cliente WHERE ligado = 1")]
-        return dict(catalogo, _criterio_de_contrato_ligado=ligados)
+        return dict(catalogo, _criterio_de_contrato_ligado=ligados, uso=historico.uso_aprovado(conn))
+
+    @app.get("/api/agente/historico", dependencies=[Depends(exige(cfg.agente_token))])
+    def agente_historico(cliente: str, apos: str = "", limite: int = 40, desde: str = "",
+                         conn: sqlite3.Connection = Depends(conexao)):
+        return historico.pagina(conn, cliente, apos, max(1, min(limite, 100)), desde)
+
+    @app.post("/api/agente/catalogo-proposto", dependencies=[Depends(exige(cfg.agente_token))])
+    async def agente_catalogo_proposto(request: Request):
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise HTTPException(422, "corpo precisa ser um objeto JSON")
+        nome = str(request.headers.get("X-Agente", "openclaw"))[:40] or "openclaw"
+        conn = banco.conectar(cfg.banco)
+        try:
+            return historico.propor(conn, payload, f"agente:{nome}")
+        finally:
+            conn.close()
 
     @app.post("/api/agente/identificacoes", dependencies=[Depends(exige(cfg.agente_token))])
     async def agente_identificar(request: Request):
@@ -432,9 +466,13 @@ def montar_painel(conn: sqlite3.Connection, usuario: str) -> dict:
     linhas = conn.execute(
         "SELECT * FROM os WHERE identificacao = 'pendente' OR EXISTS (SELECT 1 FROM itens i WHERE i.os = os.os "
         "AND i.fase NOT IN ('fim', 'reprovado')) OR atualizada_em >= datetime('now', '-30 days') "
-        "ORDER BY coletada_em, os").fetchall()
+        "ORDER BY visita_em DESC, coletada_em DESC, os DESC").fetchall()  # visita mais recente no topo
+    sem_itens = 0
     for o in linhas:
         its = itens_por_os.get(o["os"], [])
+        if not its and o["identificacao"] == "feita":
+            sem_itens += 1  # identificada sem nada a comprar (ex.: PMOC de rotina): fora da fila
+            continue
         if its:
             fase, pos = regras.fase_servico(its)
             cls_nome, cls_sub = regras.resumo_classificacao([i["cls"] for i in its])
@@ -465,4 +503,4 @@ def montar_painel(conn: sqlite3.Connection, usuario: str) -> dict:
         fases.append({"chave": f, "nome": regras.NOME_FASE[f], "quem": regras.QUEM_FASE[f], "qtd": contagem.get((f, None), 0)})
     aguardando = sum(1 for s in servicos if not s["itens"])
     return {"gerado_em": banco.agora(), "rota_versao": versao_atual, "fases": fases,
-            "aguardando_agente": aguardando, "servicos": servicos}
+            "aguardando_agente": aguardando, "sem_itens": sem_itens, "servicos": servicos}

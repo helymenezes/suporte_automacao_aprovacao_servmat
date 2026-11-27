@@ -79,10 +79,15 @@ def validar(payload: dict, os_row: sqlite3.Row, catalogo: dict, contrato_ligado:
     """Devolve (itens limpos, sem_informacao, motivo). Erro de qualquer item recusa a identificação inteira."""
     erros: list[str] = []
     sem_info = bool(payload.get("sem_informacao"))
+    # sem_itens: o relato descreve o serviço, mas não há nada a comprar nem a lançar (ex.: PMOC de rotina com
+    # limpeza e produto bactericida). A OS fica identificada, sem itens, e sai da fila de aprovação.
+    sem_itens = bool(payload.get("sem_itens"))
     motivo = _texto(payload.get("motivo", ""), "motivo", 0, 300, erros, "OS")
     brutos = payload.get("itens")
     if not isinstance(brutos, list):
-        raise ErroIdentificacao(["'itens' precisa ser uma lista (vazia quando sem_informacao)"])
+        raise ErroIdentificacao(["'itens' precisa ser uma lista (vazia quando sem_informacao ou sem_itens)"])
+    if sem_info and sem_itens:
+        raise ErroIdentificacao(["use só um: sem_informacao (relato não descreve o serviço) ou sem_itens (nada a comprar)"])
     if sem_info:
         if brutos:
             erros.append("com sem_informacao = true, 'itens' deve vir vazio")
@@ -91,8 +96,17 @@ def validar(payload: dict, os_row: sqlite3.Row, catalogo: dict, contrato_ligado:
         if erros:
             raise ErroIdentificacao(erros)
         return [], True, motivo
+    if sem_itens:
+        if brutos:
+            erros.append("com sem_itens = true, 'itens' deve vir vazio")
+        if not motivo:
+            erros.append("com sem_itens = true, explique em 'motivo' (ex.: 'PMOC de rotina: limpeza e bactericida')")
+        if erros:
+            raise ErroIdentificacao(erros)
+        return [], False, motivo
     if not brutos:
-        raise ErroIdentificacao(["nenhum item: use sem_informacao = true e 'motivo' quando o relato não descreve material, peça ou serviço"])
+        raise ErroIdentificacao(["nenhum item: use sem_itens = true (serviço sem nada a comprar) ou sem_informacao = true "
+                                 "(relato não descreve o serviço), sempre com 'motivo'"])
     if len(brutos) > MAX_ITENS:
         raise ErroIdentificacao([f"mais de {MAX_ITENS} itens numa OS"])
 
@@ -175,7 +189,7 @@ def aplicar(conn: sqlite3.Connection, payload: dict, agente_nome: str, catalogo:
         ligado = conn.execute("SELECT ligado FROM contratos_cliente WHERE cliente = ?", (o["cliente"],)).fetchone()
         itens, sem_info, motivo = validar(payload, o, catalogo, bool(ligado and ligado[0]))
         versao, snapshot = banco.rota_atual(conn)
-        if not versao and not sem_info:
+        if not versao and itens:
             raise Conflito("A rota de aprovação ainda não foi configurada (tela Níveis de aprovação).")
         conn.execute("DELETE FROM itens WHERE os = ? AND fase = 'relatorio'", (os_num,))
         agora = banco.agora()
@@ -203,7 +217,8 @@ def aplicar(conn: sqlite3.Connection, payload: dict, agente_nome: str, catalogo:
                      "VALUES (?,?,?,?,?,?,?)", (chave, os_num, o["relato_hash"], o["rodada"], agente_nome,
                                                 len(itens), agora))
         banco.evento(conn, os_num, "identificacao_agente", agente_nome, obs=motivo,
-                     dados={"itens": len(itens), "sem_informacao": sem_info, "rodada": o["rodada"]})
+                     dados={"itens": len(itens), "sem_informacao": sem_info, "sem_itens": not itens and not sem_info,
+                            "rodada": o["rodada"]})
     return {"os": os_num, "repetida": False, "itens": len(itens), "sem_informacao": sem_info}
 
 

@@ -65,6 +65,23 @@ def resposta_utilizou(t: dict, pergunta: str) -> str:
     return ""
 
 
+def juntar_relato(partes: list[str]) -> str:
+    """Junta report e respostas do questionário num relato só, sem repetir texto e sem respostas vazias ("." ou "-").
+
+    Um trecho já contido em outro (comparando sem acento, caixa e pontuação) entra uma vez só, ficando o mais completo.
+    """
+    textos: list[str] = []
+    for parte in partes:
+        texto = " ".join(str(parte or "").split())
+        n = agente.normalizar(texto)
+        if not any(c.isalpha() for c in n):
+            continue
+        if any(n in agente.normalizar(x) for x in textos):
+            continue
+        textos = [x for x in textos if agente.normalizar(x) not in n] + [texto]
+    return " · ".join(textos)
+
+
 def mapear(t: dict, cfg: dict) -> dict | None:
     """Uma tarefa do Auvo → linha da tabela os. None = fora (outro cliente ou não finalizada)."""
     status = t.get("taskStatus")
@@ -74,7 +91,10 @@ def mapear(t: dict, cfg: dict) -> dict | None:
     cliente = cliente_de(str(t.get("customerDescription") or ""), cfg["clientes"])
     if cliente is None:
         return None
-    relato = " ".join(str(t.get(cfg.get("campo_relato", "report")) or "").split())
+    # O técnico escreve no report e/ou em perguntas do questionário ("RELATO DO ATENDIMENTO", "Observação do
+    # técnico"); nas PMOC o report costuma vir vazio. As perguntas lidas ficam em perguntas_relato (coleta.json).
+    relato = juntar_relato([str(t.get(cfg.get("campo_relato", "report")) or "")]
+                           + [resposta_utilizou(t, p) for p in cfg.get("perguntas_relato") or []])
     utilizou = resposta_utilizou(t, cfg.get("pergunta_utilizou", "utilizou peça"))
     tipos = {str(k): v for k, v in (cfg.get("tipos") or {}).items()}
     tipo = tipos.get(str(t.get("taskType")), str(t.get("taskTypeDescription") or ""))
@@ -87,6 +107,7 @@ def mapear(t: dict, cfg: dict) -> dict | None:
         "relato_hash": agente.hash_relato(relato, utilizou),
         "prog_txt": f"Aberta em {_dm(task_date)}.",
         "prog_meta": f"Visita em {_dm(check_in)} · {tecnico or 'técnico não informado'} · Auvo",
+        "visita_em": check_in.strftime("%Y-%m-%dT%H:%M:%S") if check_in else "",
         "task_url": str(t.get("taskUrl") or ""),
     }
 
@@ -98,26 +119,29 @@ def gravar(conn: sqlite3.Connection, linha: dict, rel: Relatorio) -> None:
         if o is None:
             conn.execute(
                 "INSERT INTO os (os, cliente, area, equipamento, tipo, tecnico, relato, utilizou, relato_hash, "
-                "prog_txt, prog_meta, task_url, coletada_em, atualizada_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "prog_txt, prog_meta, visita_em, task_url, coletada_em, atualizada_em) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (linha["os"], linha["cliente"], linha["area"], linha["equipamento"], linha["tipo"], linha["tecnico"],
                  linha["relato"], linha["utilizou"], linha["relato_hash"], linha["prog_txt"], linha["prog_meta"],
-                 linha["task_url"], agora, agora))
+                 linha["visita_em"], linha["task_url"], agora, agora))
             banco.evento(conn, linha["os"], "coletada", "coleta")
             rel.novas += 1
             rel.os_novas.append(linha["os"])
             return
         if o["relato_hash"] == linha["relato_hash"]:
-            conn.execute("UPDATE os SET task_url = ?, tecnico = ?, area = ? WHERE os = ?",
-                         (linha["task_url"] or o["task_url"], linha["tecnico"], linha["area"], linha["os"]))
+            conn.execute("UPDATE os SET task_url = ?, tecnico = ?, area = ?, visita_em = ? WHERE os = ?",
+                         (linha["task_url"] or o["task_url"], linha["tecnico"], linha["area"],
+                          linha["visita_em"] or o["visita_em"], linha["os"]))
             rel.iguais += 1
             return
         decididos = conn.execute(
             "SELECT COUNT(*) FROM itens WHERE os = ? AND (fase != 'relatorio' AND NOT (fase = 'nivel' AND nivel_pos = 0) "
             "OR versao > 1)",
             (linha["os"],)).fetchone()[0]
-        conn.execute("UPDATE os SET relato = ?, utilizou = ?, relato_hash = ?, task_url = ?, atualizada_em = ? "
-                     "WHERE os = ?", (linha["relato"], linha["utilizou"], linha["relato_hash"],
-                                      linha["task_url"] or o["task_url"], agora, linha["os"]))
+        conn.execute("UPDATE os SET relato = ?, utilizou = ?, relato_hash = ?, task_url = ?, visita_em = ?, "
+                     "atualizada_em = ? WHERE os = ?",
+                     (linha["relato"], linha["utilizou"], linha["relato_hash"], linha["task_url"] or o["task_url"],
+                      linha["visita_em"] or o["visita_em"], agora, linha["os"]))
         if decididos:
             # Já há decisão humana: não apaga nada. O Hely vê o alerta na trilha da OS.
             banco.evento(conn, linha["os"], "relato_mudou_apos_decisao", "coleta",
