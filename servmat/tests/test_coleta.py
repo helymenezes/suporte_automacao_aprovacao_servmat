@@ -117,3 +117,25 @@ def test_relato_junta_textos_diferentes_sem_a_resposta_de_peca():
 def test_sem_perguntas_relato_continua_so_com_o_report():
     t = _com_respostas("Foi trocado o capacitor", [("Observação do técnico", "outro texto")])
     assert coleta.mapear(t, CFG)["relato"] == "Foi trocado o capacitor"
+
+
+def test_coleta_guarda_a_data_da_visita_e_preenche_bancos_antigos(conn):
+    assert coleta.mapear(tarefa(), CFG)["visita_em"] == "2026-11-18T09:10:00"
+    c, _ = central_falsa([tarefa()])
+    coleta.coletar(conn, c, CFG, datetime(2026, 11, 21, 6, 0))
+    assert conn.execute("SELECT visita_em FROM os WHERE os = '91000001'").fetchone()[0] == "2026-11-18T09:10:00"
+    conn.execute("UPDATE os SET visita_em = '' WHERE os = '91000001'")  # como numa OS coletada antes da coluna
+    r = coleta.coletar(conn, c, CFG, datetime(2026, 11, 21, 7, 0))
+    assert r.iguais == 1
+    assert conn.execute("SELECT visita_em FROM os WHERE os = '91000001'").fetchone()[0] == "2026-11-18T09:10:00"
+
+
+def test_banco_antigo_ganha_a_coluna_visita_em(tmp_path):
+    from servmat import banco
+    c = banco.conectar(str(tmp_path / "antigo.sqlite"))
+    c.execute("CREATE TABLE os (os TEXT PRIMARY KEY, cliente TEXT NOT NULL, coletada_em TEXT NOT NULL, "
+              "atualizada_em TEXT NOT NULL)")
+    c.execute("INSERT INTO os VALUES ('1', 'HGG', 'x', 'x')")
+    banco.criar(c)
+    banco.criar(c)  # rodar de novo não falha
+    assert c.execute("SELECT visita_em FROM os WHERE os = '1'").fetchone()[0] == ""

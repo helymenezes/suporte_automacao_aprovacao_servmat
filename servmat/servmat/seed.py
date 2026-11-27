@@ -110,6 +110,28 @@ ITENS = [
 ]
 
 
+def remover(conn: sqlite3.Connection) -> dict:
+    """Tira do banco as OS do esboço e os itens delas, para a fila mostrar só OS coletadas.
+
+    OS do esboço com item decidido por uma pessoa (ou sugerido fora do esboço) fica, e sai listada em `mantidas`.
+    A trilha de eventos é preservada. Uma OS do esboço que também é real volta na próxima coleta.
+    """
+    ids = [o["os"] for o in OS]
+    ph = ",".join("?" * len(ids))
+    with banco.Transacao(conn):
+        mantidas = sorted({r[0] for r in conn.execute(
+            f"SELECT DISTINCT os FROM itens WHERE os IN ({ph}) AND (versao > 1 OR sugerido_por != 'esboço')", ids)})
+        alvo = [x for x in ids if x not in mantidas]
+        if not alvo:
+            return {"os": 0, "itens": 0, "mantidas": mantidas}
+        pa = ",".join("?" * len(alvo))
+        n_itens = conn.execute(f"SELECT COUNT(*) FROM itens WHERE os IN ({pa})", alvo).fetchone()[0]
+        n_os = conn.execute(f"SELECT COUNT(*) FROM os WHERE os IN ({pa})", alvo).fetchone()[0]
+        conn.execute(f"DELETE FROM os WHERE os IN ({pa})", alvo)  # itens e Pedidos saem em cascata
+        banco.evento(conn, "*", "seed_esboco_removido", "seed", dados={"os": n_os, "itens": n_itens, "mantidas": mantidas})
+    return {"os": n_os, "itens": n_itens, "mantidas": mantidas}
+
+
 def carregar(conn: sqlite3.Connection, forcar: bool = False) -> int:
     existentes = conn.execute("SELECT COUNT(*) FROM os").fetchone()[0]
     if existentes and not forcar:

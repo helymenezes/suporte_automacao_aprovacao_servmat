@@ -107,6 +107,7 @@ def mapear(t: dict, cfg: dict) -> dict | None:
         "relato_hash": agente.hash_relato(relato, utilizou),
         "prog_txt": f"Aberta em {_dm(task_date)}.",
         "prog_meta": f"Visita em {_dm(check_in)} · {tecnico or 'técnico não informado'} · Auvo",
+        "visita_em": check_in.strftime("%Y-%m-%dT%H:%M:%S") if check_in else "",
         "task_url": str(t.get("taskUrl") or ""),
     }
 
@@ -118,26 +119,29 @@ def gravar(conn: sqlite3.Connection, linha: dict, rel: Relatorio) -> None:
         if o is None:
             conn.execute(
                 "INSERT INTO os (os, cliente, area, equipamento, tipo, tecnico, relato, utilizou, relato_hash, "
-                "prog_txt, prog_meta, task_url, coletada_em, atualizada_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "prog_txt, prog_meta, visita_em, task_url, coletada_em, atualizada_em) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (linha["os"], linha["cliente"], linha["area"], linha["equipamento"], linha["tipo"], linha["tecnico"],
                  linha["relato"], linha["utilizou"], linha["relato_hash"], linha["prog_txt"], linha["prog_meta"],
-                 linha["task_url"], agora, agora))
+                 linha["visita_em"], linha["task_url"], agora, agora))
             banco.evento(conn, linha["os"], "coletada", "coleta")
             rel.novas += 1
             rel.os_novas.append(linha["os"])
             return
         if o["relato_hash"] == linha["relato_hash"]:
-            conn.execute("UPDATE os SET task_url = ?, tecnico = ?, area = ? WHERE os = ?",
-                         (linha["task_url"] or o["task_url"], linha["tecnico"], linha["area"], linha["os"]))
+            conn.execute("UPDATE os SET task_url = ?, tecnico = ?, area = ?, visita_em = ? WHERE os = ?",
+                         (linha["task_url"] or o["task_url"], linha["tecnico"], linha["area"],
+                          linha["visita_em"] or o["visita_em"], linha["os"]))
             rel.iguais += 1
             return
         decididos = conn.execute(
             "SELECT COUNT(*) FROM itens WHERE os = ? AND (fase != 'relatorio' AND NOT (fase = 'nivel' AND nivel_pos = 0) "
             "OR versao > 1)",
             (linha["os"],)).fetchone()[0]
-        conn.execute("UPDATE os SET relato = ?, utilizou = ?, relato_hash = ?, task_url = ?, atualizada_em = ? "
-                     "WHERE os = ?", (linha["relato"], linha["utilizou"], linha["relato_hash"],
-                                      linha["task_url"] or o["task_url"], agora, linha["os"]))
+        conn.execute("UPDATE os SET relato = ?, utilizou = ?, relato_hash = ?, task_url = ?, visita_em = ?, "
+                     "atualizada_em = ? WHERE os = ?",
+                     (linha["relato"], linha["utilizou"], linha["relato_hash"], linha["task_url"] or o["task_url"],
+                      linha["visita_em"] or o["visita_em"], agora, linha["os"]))
         if decididos:
             # Já há decisão humana: não apaga nada. O Hely vê o alerta na trilha da OS.
             banco.evento(conn, linha["os"], "relato_mudou_apos_decisao", "coleta",

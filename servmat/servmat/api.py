@@ -466,7 +466,7 @@ def montar_painel(conn: sqlite3.Connection, usuario: str) -> dict:
     linhas = conn.execute(
         "SELECT * FROM os WHERE identificacao = 'pendente' OR EXISTS (SELECT 1 FROM itens i WHERE i.os = os.os "
         "AND i.fase NOT IN ('fim', 'reprovado')) OR atualizada_em >= datetime('now', '-30 days') "
-        "ORDER BY coletada_em, os").fetchall()
+        "ORDER BY visita_em DESC, coletada_em DESC, os DESC").fetchall()  # visita mais recente no topo
     for o in linhas:
         its = itens_por_os.get(o["os"], [])
         if its:

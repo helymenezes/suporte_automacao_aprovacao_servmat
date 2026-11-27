@@ -123,3 +123,29 @@ def test_login_errado_e_freio(cliente):
     for _ in range(5):
         assert cliente.post("/api/login", json={"usuario": "hely", "senha": "errada-errada"}).status_code == 401
     assert cliente.post("/api/login", json={"usuario": "hely", "senha": "senha-de-teste-123"}).status_code == 429
+
+
+def test_painel_mostra_a_visita_mais_recente_primeiro(cliente, conn):
+    from servmat import coleta
+    from test_coleta import CFG, central_falsa, tarefa
+    antiga = dict(tarefa(tid=91000001), checkInDate="2026-11-10T08:00:00")
+    nova = dict(tarefa(tid=91000002), checkInDate="2026-11-25T08:00:00")
+    c, _ = central_falsa([antiga, nova])
+    from datetime import datetime
+    coleta.coletar(conn, c, CFG, datetime(2026, 11, 26, 6, 0))
+    entrar(cliente, "hely")
+    ordem = [s["os"] for s in cliente.get("/api/painel").json()["servicos"]]
+    assert ordem[:2] == ["91000002", "91000001"]
+
+
+def test_remover_esboco_tira_as_os_de_exemplo_e_preserva_decisao(cliente, conn):
+    from servmat import seed
+    h = entrar(cliente, "hely")
+    _, it = _item(cliente, "82150519", "Condensador")
+    assert decidir(cliente, h, it).status_code == 200  # decisão humana numa OS do esboço
+    r = seed.remover(conn)
+    assert r["mantidas"] == ["82150519"]
+    assert r["os"] == 10
+    restantes = [s["os"] for s in cliente.get("/api/painel").json()["servicos"]]
+    assert restantes == ["82150519"]
+    assert seed.remover(conn)["os"] == 0  # repetir não apaga mais nada

@@ -1,6 +1,7 @@
 """
 python -m servmat servico                         sobe o painel + API (uvicorn)
 python -m servmat seed-esboco [--forcar]           carrega as 11 OS do esboço (sem aprovação)
+python -m servmat seed-esboco --remover            tira do banco as OS do esboço (deixa só as coletadas)
 python -m servmat usuario --usuario hely --nome "Hely R Menezes" --admin   (senha: SERVMAT_SENHA ou pergunta)
 python -m servmat usuario --usuario renato --nome "Renato Bonfim"
   Com hely e renato criados, nasce a rota padrão (Nível 1 Hely → Nível 2 Renato). Depois, mude na tela Níveis.
@@ -32,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("servico")
     s = sub.add_parser("seed-esboco")
     s.add_argument("--forcar", action="store_true")
+    s.add_argument("--remover", action="store_true")
     u = sub.add_parser("usuario")
     u.add_argument("--usuario", required=True)
     u.add_argument("--nome", required=True)
@@ -63,6 +65,9 @@ def main(argv: list[str] | None = None) -> int:
         conn.close()
         uvicorn.run(criar_app(cfg), host=cfg.host, port=cfg.porta, log_level="info", proxy_headers=False,
                     server_header=False)
+        return 0
+    if a.cmd == "seed-esboco" and a.remover:
+        print(json.dumps(seed.remover(conn), ensure_ascii=False))
         return 0
     if a.cmd == "seed-esboco":
         n = seed.carregar(conn, a.forcar)
