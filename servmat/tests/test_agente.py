@@ -87,3 +87,31 @@ def test_contrato_desligado_recusa_contrato(conn):
     o = nova_os(conn)
     with pytest.raises(agente.ErroIdentificacao, match="critério de contrato do HGG está desligado"):
         agente.aplicar(conn, {"os": o["os"], "relato_hash": o["relato_hash"], "itens": [item()]}, "agente:t", CAT)
+
+
+
+def test_sem_itens_conclui_a_os_sem_aprovacao_e_tira_da_fila(conn, cliente):
+    from conftest import entrar
+    rel = "Realizado a preventiva mensal com produto bactericida, equipamento funcionando normal"
+    o = nova_os(conn, relato=rel, utilizou="")
+    r = agente.aplicar(conn, {"os": o["os"], "relato_hash": o["relato_hash"], "itens": [], "sem_itens": True,
+                              "motivo": "PMOC de rotina: limpeza e produto bactericida"}, "agente:t", CAT)
+    assert r == {"os": "90000001", "repetida": False, "itens": 0, "sem_informacao": False}
+    assert conn.execute("SELECT identificacao FROM os WHERE os = '90000001'").fetchone()[0] == "feita"
+    assert conn.execute("SELECT COUNT(*) FROM itens WHERE os = '90000001'").fetchone()[0] == 0
+    entrar(cliente, "hely")
+    p = cliente.get("/api/painel").json()
+    assert "90000001" not in [s["os"] for s in p["servicos"]]
+    assert p["sem_itens"] == 1
+
+
+@pytest.mark.parametrize("extra", [
+    {"itens": [], "sem_itens": True},
+    {"itens": [item()], "sem_itens": True, "motivo": "rotina"},
+    {"itens": [], "sem_itens": True, "sem_informacao": True, "motivo": "rotina"},
+    {"itens": []},
+])
+def test_sem_itens_exige_motivo_lista_vazia_e_nao_combina_com_sem_informacao(conn, extra):
+    o = nova_os(conn)
+    with pytest.raises(agente.ErroIdentificacao):
+        agente.validar({"os": o["os"], "relato_hash": o["relato_hash"], **extra}, o, CAT)

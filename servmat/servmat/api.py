@@ -467,8 +467,12 @@ def montar_painel(conn: sqlite3.Connection, usuario: str) -> dict:
         "SELECT * FROM os WHERE identificacao = 'pendente' OR EXISTS (SELECT 1 FROM itens i WHERE i.os = os.os "
         "AND i.fase NOT IN ('fim', 'reprovado')) OR atualizada_em >= datetime('now', '-30 days') "
         "ORDER BY visita_em DESC, coletada_em DESC, os DESC").fetchall()  # visita mais recente no topo
+    sem_itens = 0
     for o in linhas:
         its = itens_por_os.get(o["os"], [])
+        if not its and o["identificacao"] == "feita":
+            sem_itens += 1  # identificada sem nada a comprar (ex.: PMOC de rotina): fora da fila
+            continue
         if its:
             fase, pos = regras.fase_servico(its)
             cls_nome, cls_sub = regras.resumo_classificacao([i["cls"] for i in its])
@@ -499,4 +503,4 @@ def montar_painel(conn: sqlite3.Connection, usuario: str) -> dict:
         fases.append({"chave": f, "nome": regras.NOME_FASE[f], "quem": regras.QUEM_FASE[f], "qtd": contagem.get((f, None), 0)})
     aguardando = sum(1 for s in servicos if not s["itens"])
     return {"gerado_em": banco.agora(), "rota_versao": versao_atual, "fases": fases,
-            "aguardando_agente": aguardando, "servicos": servicos}
+            "aguardando_agente": aguardando, "sem_itens": sem_itens, "servicos": servicos}

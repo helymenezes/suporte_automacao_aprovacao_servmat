@@ -80,8 +80,28 @@ Campos:
 - `val_ok` / `val_txt`: coerência entre o relato e o campo "Utilizou peça". Campo "Nao" com relato de troca é
   **divergência** (`val_ok: false`). Necessidade futura com campo "Nao" é coerente.
 
-Sem material, peça ou serviço no texto (ex.: "materiais descritos na imagem"): envie `"itens": []`,
-`"sem_informacao": true` e o `motivo`. A OS fica para o técnico corrigir o relatório no Auvo.
+### OS sem item: escolha um dos dois
+
+- **Serviço feito, nada a comprar nem a lançar** (o caso mais comum na PMOC): envie `"itens": []`,
+  `"sem_itens": true` e o `motivo` (ex.: "PMOC de rotina: limpeza e produto bactericida"). A OS sai da fila.
+- **O relato não diz o que foi feito** (vazio, "materiais descritos na imagem", só "ok"): envie `"itens": []`,
+  `"sem_informacao": true` e o `motivo`. A OS fica para o técnico corrigir o relatório no Auvo.
+
+Nunca use os dois juntos.
+
+### Rotina da PMOC e da preventiva não é item
+
+O que faz parte da própria manutenção programada já está no serviço e **não vira item**, nem como Material:
+limpeza, lavagem, higienização, produto bactericida, desinfetante ou desincrustante usado na limpeza de rotina,
+verificação, inspeção, medição de pressão ou corrente, aperto, lubrificação, teste de funcionamento.
+"Realizado a preventiva mensal com produto bactericida, equipamento funcionando normal" → `sem_itens`.
+
+Vira item só o que sai do comum da visita:
+- peça ou material **trocado** ("foi trocado o filtro", "substituído o isolamento") ou **necessário** ("precisa
+  trocar o compressor"), inclusive numa OS de PMOC;
+- serviço **extra** ao da rotina (rebobinar, recondicionar, limpeza química da serpentina pedida à parte).
+
+Na dúvida entre rotina e item extra, mande o item com `conf: "Baixa"` e diga a dúvida em `contrato_obs`.
 
 ## Regras que não mudam
 
