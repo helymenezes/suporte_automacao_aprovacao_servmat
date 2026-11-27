@@ -65,6 +65,23 @@ def resposta_utilizou(t: dict, pergunta: str) -> str:
     return ""
 
 
+def juntar_relato(partes: list[str]) -> str:
+    """Junta report e respostas do questionário num relato só, sem repetir texto e sem respostas vazias ("." ou "-").
+
+    Um trecho já contido em outro (comparando sem acento, caixa e pontuação) entra uma vez só, ficando o mais completo.
+    """
+    textos: list[str] = []
+    for parte in partes:
+        texto = " ".join(str(parte or "").split())
+        n = agente.normalizar(texto)
+        if not any(c.isalpha() for c in n):
+            continue
+        if any(n in agente.normalizar(x) for x in textos):
+            continue
+        textos = [x for x in textos if agente.normalizar(x) not in n] + [texto]
+    return " · ".join(textos)
+
+
 def mapear(t: dict, cfg: dict) -> dict | None:
     """Uma tarefa do Auvo → linha da tabela os. None = fora (outro cliente ou não finalizada)."""
     status = t.get("taskStatus")
@@ -74,7 +91,10 @@ def mapear(t: dict, cfg: dict) -> dict | None:
     cliente = cliente_de(str(t.get("customerDescription") or ""), cfg["clientes"])
     if cliente is None:
         return None
-    relato = " ".join(str(t.get(cfg.get("campo_relato", "report")) or "").split())
+    # O técnico escreve no report e/ou em perguntas do questionário ("RELATO DO ATENDIMENTO", "Observação do
+    # técnico"); nas PMOC o report costuma vir vazio. As perguntas lidas ficam em perguntas_relato (coleta.json).
+    relato = juntar_relato([str(t.get(cfg.get("campo_relato", "report")) or "")]
+                           + [resposta_utilizou(t, p) for p in cfg.get("perguntas_relato") or []])
     utilizou = resposta_utilizou(t, cfg.get("pergunta_utilizou", "utilizou peça"))
     tipos = {str(k): v for k, v in (cfg.get("tipos") or {}).items()}
     tipo = tipos.get(str(t.get("taskType")), str(t.get("taskTypeDescription") or ""))

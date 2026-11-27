@@ -1,8 +1,9 @@
 {
-  "_pendente": "P-01: pergunta confirmada na central em 21/11/2026 (UTILIZOU ALGUMA PEÇA?:). Falta confirmar o campo do relato; a listagem traz equipmentsId, não o nome do equipamento.",
+  "_pendente": "P-01: pergunta confirmada na central em 21/11/2026 (UTILIZOU ALGUMA PEÇA?:). Em 26/11/2026 o relato passou a juntar report + respostas de perguntas_relato (só 139 de 557 OS tinham report). A listagem traz equipmentsId, não o nome do equipamento.",
   "dias": 15,
   "campos": "taskID,taskUrl,taskStatus,finished,checkInDate,checkOutDate,taskDate,taskType,taskTypeDescription,customerId,customerDescription,equipmentsId,report,userToName,questionnaires,dateLastUpdate",
   "campo_relato": "report",
+  "perguntas_relato": ["RELATO DO ATENDIMENTO", "Observação do técnico"],
   "campo_equipamento": "equipmentName",
   "pergunta_utilizou": "Utilizou alguma peça",
   "clientes": {
